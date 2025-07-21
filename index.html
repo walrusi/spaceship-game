@@ -56,31 +56,45 @@
             to { transform: translateX(-50%) translateY(40px); }
         }
 
-        .stars {
+        #stars-far, #stars-mid, #stars-near {
             position: absolute;
-            width: 100%;
-            height: 100%;
-            background: transparent;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-repeat: repeat;
+            pointer-events: none;
         }
 
-        .stars::after {
-            content: '';
-            position: absolute;
-            width: 100%;
-            height: 200vh;
+        /* Far stars: small, dim, dense, and slow */
+        #stars-far {
             background-image: 
-                radial-gradient(circle at 20% 80%, #ffffff 0.5px, transparent 0.5px),
-                radial-gradient(circle at 80% 20%, #b3d9ff 0.5px, transparent 0.5px),
-                radial-gradient(circle at 40% 40%, #ffffff 1px, transparent 1px),
-                radial-gradient(circle at 60% 60%, #ffeb3b 0.5px, transparent 0.5px),
-                radial-gradient(circle at 90% 10%, #ff6b7a 0.5px, transparent 0.5px);
-            background-size: 80px 80px, 120px 120px, 60px 60px, 100px 100px, 140px 140px;
-            animation: starsScroll 3s linear infinite;
+                radial-gradient(circle, rgba(255, 255, 255, 0.4) 0.5px, transparent 0.5px);
+            background-size: 50px 50px;
+            animation: starsScroll 25s linear infinite;
+        }
+
+        /* Mid stars: medium, slightly brighter, less dense, medium speed */
+        #stars-mid {
+            background-image: 
+                radial-gradient(circle, rgba(220, 240, 255, 0.7) 1px, transparent 1px),
+                radial-gradient(circle, rgba(255, 255, 220, 0.5) 0.5px, transparent 0.5px);
+            background-size: 100px 100px, 180px 180px;
+            animation: starsScroll 15s linear infinite;
+        }
+
+        /* Near stars: larger, bright, sparse, and fast */
+        #stars-near {
+            background-image: 
+                radial-gradient(circle, #ffffff 1.5px, transparent 1.5px),
+                radial-gradient(circle, #ffeb3b 1px, transparent 1px);
+            background-size: 150px 150px, 250px 250px;
+            animation: starsScroll 8s linear infinite;
         }
 
         @keyframes starsScroll {
-            from { transform: translateY(0); }
-            to { transform: translateY(80px); }
+            from { background-position-y: 0px; }
+            to { background-position-y: 1000px; }
         }
 
         .player-ship {
@@ -165,6 +179,11 @@
         .asteroid.type4 {
             background: radial-gradient(circle at 30% 30%, #708090, #2f4f4f);
             box-shadow: 0 4px 12px rgba(112, 128, 144, 0.6), inset -5px -5px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .asteroid.type-large {
+            background: radial-gradient(circle at 30% 30%, #a04040, #5d1a1a); /* Dark, menacing red */
+            box-shadow: 0 6px 18px rgba(160, 64, 64, 0.7), inset -8px -8px 15px rgba(0, 0, 0, 0.6);
         }
 
         .asteroid::before {
@@ -349,7 +368,9 @@
 </head>
 <body>
     <div class="game-container">
-        <div class="stars"></div>
+        <div id="stars-far"></div>
+        <div id="stars-mid"></div>
+        <div id="stars-near"></div>
         <div class="space-lane"></div>
         <div class="player-ship" id="playerCar"></div>
         
@@ -406,7 +427,7 @@
                     y: window.innerHeight - 120,
                     width: 40,
                     height: 70,
-                    speed: 5,
+                    speed: 6,
                     vx: 0
                 };
                 
@@ -498,8 +519,8 @@
                 } else if (this.keys.right) {
                     this.player.vx = this.player.speed;
                 } else {
-                    // Apply damping for smooth stop. A lower number is less "slippery".
-                    this.player.vx *= 0.85; 
+                    // Apply damping for smooth stop
+                    this.player.vx *= 0.9; 
                 }
 
                 // Update position based on velocity and clamp to boundaries
@@ -515,28 +536,58 @@
             spawnEnemy() {
                 if (Math.random() < this.enemySpawnRate) {
                     const lane = Math.floor(Math.random() * this.lanes.length);
-                    const type = this.asteroidTypes[Math.floor(Math.random() * this.asteroidTypes.length)];
-                    const sizeMultiplier = Math.random() < 0.25 ? 1.5 : 1; // 25% chance of being large
-                    const baseSize = 40;
+                    const rand = Math.random();
+                    let enemy;
 
-                    const enemy = {
-                        x: this.lanes[lane],
-                        y: -(baseSize * sizeMultiplier),
-                        width: baseSize * sizeMultiplier,
-                        height: baseSize * sizeMultiplier,
-                        speed: this.enemySpeed + Math.random() * 2,
-                        element: document.createElement('div'),
-                        color: type,
-                        dx: 0,
-                        scoreValue: sizeMultiplier > 1 ? 200 : 100
-                    };
-                    
-                    // Some asteroids will move diagonally
-                    if (Math.random() < 0.4) { // 40% chance
-                        enemy.dx = (Math.random() - 0.5) * 2.5; // a value between -1.25 and 1.25
+                    // Refined spawn rates: Large are rarer, medium and small are common and balanced.
+                    if (rand < 0.10) { // 10% chance for a large, breakable asteroid
+                        const baseSize = 65;
+                        enemy = {
+                            x: this.lanes[lane],
+                            y: -baseSize,
+                            width: baseSize,
+                            height: baseSize,
+                            speed: this.enemySpeed * 0.8, // Slower and more menacing
+                            element: document.createElement('div'),
+                            isLarge: true,
+                            dx: (Math.random() - 0.5) * 1.5, // Gentle drift
+                            scoreValue: 300
+                        };
+                        enemy.element.className = 'asteroid type-large';
+
+                    } else if (rand < 0.55) { // 45% chance for a medium, drifting asteroid
+                        const type = this.asteroidTypes[Math.floor(Math.random() * this.asteroidTypes.length)];
+                        const baseSize = Math.floor(Math.random() * 21) + 30; // Random size from 30px to 50px
+                        enemy = {
+                            x: this.lanes[lane],
+                            y: -baseSize,
+                            width: baseSize,
+                            height: baseSize,
+                            speed: this.enemySpeed + Math.random() * 2,
+                            element: document.createElement('div'),
+                            isLarge: false,
+                            dx: (Math.random() - 0.5) * 2.5, // Its defining feature is its drift
+                            scoreValue: 100
+                        };
+                        enemy.element.className = `asteroid ${type}`;
+
+                    } else { // 45% chance for a small, stationary asteroid
+                        const type = this.asteroidTypes[Math.floor(Math.random() * this.asteroidTypes.length)];
+                        const baseSize = Math.floor(Math.random() * 21) + 30; // Random size from 30px to 50px
+                        enemy = {
+                            x: this.lanes[lane],
+                            y: -baseSize,
+                            width: baseSize,
+                            height: baseSize,
+                            speed: this.enemySpeed + Math.random() * 2,
+                            element: document.createElement('div'),
+                            isLarge: false,
+                            dx: 0, // Its defining feature is no drift
+                            scoreValue: 100
+                        };
+                        enemy.element.className = `asteroid ${type}`;
                     }
 
-                    enemy.element.className = `asteroid ${type}`;
                     enemy.element.style.width = `${enemy.width}px`;
                     enemy.element.style.height = `${enemy.height}px`;
                     enemy.element.style.left = `${enemy.x}px`;
@@ -623,22 +674,57 @@
                         const enemy = this.enemies[j];
                         
                         if (this.isRocketColliding(rocket, enemy)) {
-                            const scoreGained = enemy.scoreValue || 100; // Fallback for safety
-                            // Create floating text before removing the enemy
-                            this.createFloatingText(`+${scoreGained} points`, enemy.x, enemy.y);
+                            // If it's a large asteroid, break it apart
+                            if (enemy.isLarge) {
+                                this.breakLargeAsteroid(enemy);
+                                this.score += enemy.scoreValue;
+                                this.createFloatingText(`+${enemy.scoreValue} points!`, enemy.x, enemy.y);
+                            } else {
+                                // Regular asteroid destruction
+                                const scoreGained = enemy.scoreValue || 100;
+                                this.score += scoreGained;
+                                this.createFloatingText(`+${scoreGained} points`, enemy.x, enemy.y);
+                            }
 
-                            // Remove both rocket and enemy
-                            rocket.element.remove();
-                            this.rockets.splice(i, 1);
-                            
+                            // Remove the original enemy and the rocket
                             enemy.element.remove();
                             this.enemies.splice(j, 1);
                             
-                            // Add bonus points for destroying asteroid
-                            this.score += scoreGained;
-                            break;
+                            rocket.element.remove();
+                            this.rockets.splice(i, 1);
+                            
+                            break; // Rocket is gone, stop checking this rocket
                         }
                     }
+                }
+            }
+
+            breakLargeAsteroid(parent) {
+                // Spawn two smaller asteroids from the parent's location
+                for (let i = 0; i < 2; i++) {
+                    const type = this.asteroidTypes[Math.floor(Math.random() * this.asteroidTypes.length)];
+                    const baseSize = 40;
+                    const fragment = {
+                        x: parent.x + (i === 0 ? -15 : 15), // Spawn them slightly apart
+                        y: parent.y,
+                        width: baseSize,
+                        height: baseSize,
+                        speed: this.enemySpeed * 1.2, // Fragments are faster
+                        element: document.createElement('div'),
+                        isLarge: false,
+                        // Give them an outward velocity
+                        dx: (i === 0 ? -1.5 : 1.5) + (Math.random() - 0.5),
+                        scoreValue: 100 // They are now regular asteroids
+                    };
+
+                    fragment.element.className = `asteroid ${type}`;
+                    fragment.element.style.width = `${fragment.width}px`;
+                    fragment.element.style.height = `${fragment.height}px`;
+                    fragment.element.style.left = `${fragment.x}px`;
+                    fragment.element.style.top = `${fragment.y}px`;
+                    this.gameContainer.appendChild(fragment.element);
+                    
+                    this.enemies.push(fragment);
                 }
             }
 
