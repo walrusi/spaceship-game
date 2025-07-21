@@ -587,9 +587,9 @@
                 
                 // Increase difficulty over time
                 if (this.score > 0 && this.score % 500 === 0) {
-                    this.enemySpawnRate = Math.min(0.08, this.enemySpawnRate + 0.005);
-                    this.enemySpeed = Math.min(8, this.enemySpeed + 0.2);
-                    this.speed = Math.min(120, this.speed + 5);
+                    this.enemySpawnRate = Math.min(0.08, this.enemySpawnRate + 0.015);
+                    this.enemySpeed = Math.min(8, this.enemySpeed + 0.5);
+                    this.speed = Math.min(120, this.speed + 10);
                     this.speedElement.textContent = this.speed;
                 }
             }
