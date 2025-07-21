@@ -282,6 +282,30 @@
             color: #26d061;
             text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
         }
+
+        .rocket {
+            position: absolute;
+            width: 4px;
+            height: 20px;
+            background: linear-gradient(to top, #ff6b35, #ffff00);
+            border-radius: 2px 2px 0 0;
+            box-shadow: 
+                0 0 8px #ffff00,
+                0 0 16px rgba(255, 255, 0, 0.6);
+            z-index: 8;
+        }
+
+        .rocket::after {
+            content: '';
+            position: absolute;
+            width: 2px;
+            height: 8px;
+            left: 1px;
+            bottom: -8px;
+            background: linear-gradient(to bottom, #ff6b35, transparent);
+            border-radius: 50%;
+            box-shadow: 0 0 4px #ff6b35;
+        }
     </style>
 </head>
 <body>
@@ -306,7 +330,7 @@
         </div>
         
         <div class="instructions">
-            Use ← → Arrow Keys or A/D to navigate • Avoid the asteroids!
+            Use ← → Arrow Keys or A/D to navigate • ↑ or W to shoot • Avoid the asteroids!
         </div>
     </div>
 
@@ -346,6 +370,7 @@
                 };
                 
                 this.enemies = [];
+                this.rockets = [];
                 this.gameRunning = true;
                 this.score = 0;
                 this.highScore = localStorage.getItem('spaceGameHighScore') || 0;
@@ -355,7 +380,8 @@
                 
                 this.keys = {
                     left: false,
-                    right: false
+                    right: false,
+                    up: false
                 };
                 
                 this.asteroidTypes = ['type1', 'type2', 'type3', 'type4'];
@@ -383,6 +409,14 @@
                         case 'D':
                             this.keys.right = true;
                             break;
+                        case 'ArrowUp':
+                        case 'w':
+                        case 'W':
+                            if (!this.keys.up) {
+                                this.keys.up = true;
+                                this.shootRocket();
+                            }
+                            break;
                     }
                 });
                 
@@ -397,6 +431,11 @@
                         case 'd':
                         case 'D':
                             this.keys.right = false;
+                            break;
+                        case 'ArrowUp':
+                        case 'w':
+                        case 'W':
+                            this.keys.up = false;
                             break;
                     }
                 });
@@ -463,6 +502,68 @@
                     }
                 }
             }
+
+            shootRocket() {
+                const rocket = {
+                    x: this.player.x + 18, // Center of ship
+                    y: this.player.y - 10,
+                    width: 4,
+                    height: 20,
+                    speed: 12,
+                    element: document.createElement('div')
+                };
+                
+                rocket.element.className = 'rocket';
+                rocket.element.style.left = `${rocket.x}px`;
+                rocket.element.style.top = `${rocket.y}px`;
+                this.gameContainer.appendChild(rocket.element);
+                
+                this.rockets.push(rocket);
+            }
+
+            updateRockets() {
+                for (let i = this.rockets.length - 1; i >= 0; i--) {
+                    const rocket = this.rockets[i];
+                    rocket.y -= rocket.speed;
+                    rocket.element.style.top = `${rocket.y}px`;
+                    
+                    // Remove rockets that have left the screen
+                    if (rocket.y < -30) {
+                        rocket.element.remove();
+                        this.rockets.splice(i, 1);
+                    }
+                }
+            }
+
+            checkRocketCollisions() {
+                for (let i = this.rockets.length - 1; i >= 0; i--) {
+                    const rocket = this.rockets[i];
+                    
+                    for (let j = this.enemies.length - 1; j >= 0; j--) {
+                        const enemy = this.enemies[j];
+                        
+                        if (this.isRocketColliding(rocket, enemy)) {
+                            // Remove both rocket and enemy
+                            rocket.element.remove();
+                            this.rockets.splice(i, 1);
+                            
+                            enemy.element.remove();
+                            this.enemies.splice(j, 1);
+                            
+                            // Add bonus points for destroying asteroid
+                            this.score += 50;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            isRocketColliding(rocket, enemy) {
+                return rocket.x < enemy.x + enemy.width &&
+                       rocket.x + rocket.width > enemy.x &&
+                       rocket.y < enemy.y + enemy.height &&
+                       rocket.y + rocket.height > enemy.y;
+            }
             
             checkCollisions() {
                 for (const enemy of this.enemies) {
@@ -517,6 +618,8 @@
                 this.updatePlayerPosition();
                 this.spawnEnemy();
                 this.updateEnemies();
+                this.updateRockets();
+                this.checkRocketCollisions();
                 this.checkCollisions();
                 this.updateScore();
                 
@@ -532,9 +635,11 @@
                 this.enemySpeed = 3;
                 this.player.currentLane = 4;
                 
-                // Clear enemies
+                // Clear enemies and rockets
                 this.enemies.forEach(enemy => enemy.element.remove());
                 this.enemies = [];
+                this.rockets.forEach(rocket => rocket.element.remove());
+                this.rockets = [];
                 
                 // Reset UI
                 this.scoreElement.textContent = '0';
