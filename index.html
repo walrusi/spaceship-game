@@ -402,12 +402,12 @@
                 ];
                 
                 this.player = {
-                    x: this.lanes[4],
+                    x: this.roadLeft + this.gameWidth / 2,
                     y: window.innerHeight - 120,
                     width: 40,
                     height: 70,
-                    speed: 8,
-                    currentLane: 4
+                    speed: 5,
+                    vx: 0
                 };
                 
                 this.enemies = [];
@@ -492,26 +492,24 @@
             }
             
             updatePlayerPosition() {
-                if (this.keys.left && this.player.currentLane > 0) {
-                    this.player.currentLane--;
-                    this.keys.left = false;
-                }
-                if (this.keys.right && this.player.currentLane < this.lanes.length - 1) {
-                    this.player.currentLane++;
-                    this.keys.right = false;
-                }
-                
-                this.player.x = this.lanes[this.player.currentLane];
-                this.playerCar.style.left = `${this.player.x}px`;
-                
-                // Add slight tilt when changing lanes
-                const targetX = this.lanes[this.player.currentLane];
-                const currentX = parseFloat(this.playerCar.style.left) || targetX;
-                if (Math.abs(targetX - currentX) > 2) {
-                    this.playerCar.style.transform = `translateX(-50%) rotate(${(targetX - currentX) * 0.1}deg)`;
+                // Apply acceleration based on key presses
+                if (this.keys.left) {
+                    this.player.vx = -this.player.speed;
+                } else if (this.keys.right) {
+                    this.player.vx = this.player.speed;
                 } else {
-                    this.playerCar.style.transform = 'translateX(-50%) rotate(0deg)';
+                    // Apply damping for smooth stop. A lower number is less "slippery".
+                    this.player.vx *= 0.85; 
                 }
+
+                // Update position based on velocity and clamp to boundaries
+                const minX = this.roadLeft + this.player.width / 2;
+                const maxX = this.roadLeft + this.gameWidth - this.player.width / 2;
+                this.player.x = Math.max(minX, Math.min(this.player.x + this.player.vx, maxX));
+
+                // Update visual element and add tilt based on velocity
+                this.playerCar.style.left = `${this.player.x}px`;
+                this.playerCar.style.transform = `translateX(-50%) rotate(${this.player.vx * 2}deg)`;
             }
             
             spawnEnemy() {
@@ -780,7 +778,8 @@
                 this.enemySpeed = 3;
                 this.currentRockets = this.maxRockets;
                 this.lastRechargeTime = 0;
-                this.player.currentLane = 4;
+                this.player.x = this.roadLeft + this.gameWidth / 2;
+                this.player.vx = 0;
                 this.level = 1;
                 
                 // Clear enemies and rockets
