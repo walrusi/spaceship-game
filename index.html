@@ -51,10 +51,6 @@
                 rgba(100, 150, 255, 0.3) 98%, rgba(100, 150, 255, 0.3) 100%);
         }
 
-
-
-
-
         @keyframes spaceScroll {
             from { transform: translateX(-50%) translateY(0); }
             to { transform: translateX(-50%) translateY(40px); }
@@ -283,6 +279,13 @@
             text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
         }
 
+        .rockets-ui {
+            font-size: 16px;
+            color: #ff6b35;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+            margin-top: 5px;
+        }
+
         .rocket {
             position: absolute;
             width: 4px;
@@ -306,6 +309,17 @@
             border-radius: 50%;
             box-shadow: 0 0 4px #ff6b35;
         }
+
+        .floating-text {
+            position: absolute;
+            font-size: 16px;
+            font-weight: bold;
+            color: #ffeb3b;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+            z-index: 101;
+            pointer-events: none;
+            transition: transform 1s ease-out, opacity 1s ease-out;
+        }
     </style>
 </head>
 <body>
@@ -317,6 +331,7 @@
         <div class="ui">
             <div class="score">Score: <span id="score">0</span></div>
             <div class="high-score">High Score: <span id="highScore">0</span></div>
+            <div class="rockets-ui">Rockets: <span id="rocketCount">10</span> / 10</div>
         </div>
         
         <div class="speed-indicator">
@@ -342,6 +357,7 @@
                 this.scoreElement = document.getElementById('score');
                 this.highScoreElement = document.getElementById('highScore');
                 this.speedElement = document.getElementById('speed');
+                this.rocketCountElement = document.getElementById('rocketCount');
                 this.gameOverScreen = document.getElementById('gameOver');
                 this.finalScoreElement = document.getElementById('finalScore');
                 
@@ -377,6 +393,11 @@
                 this.speed = 60;
                 this.enemySpawnRate = 0.04;
                 this.enemySpeed = 3;
+                this.maxRockets = 10;
+                this.currentRockets = this.maxRockets;
+                this.rocketRechargeRate = 1000; // 1 second in ms
+                this.lastRechargeTime = 0;
+
                 
                 this.keys = {
                     left: false,
@@ -391,6 +412,7 @@
             
             init() {
                 this.highScoreElement.textContent = this.highScore;
+                this.updateRocketUI();
                 this.updatePlayerPosition();
                 this.bindEvents();
                 this.gameLoop();
@@ -504,26 +526,32 @@
             }
 
             shootRocket() {
-                const rocket = {
-                    x: this.player.x - 1, // Center rocket properly
-                    y: this.player.y - 10,
-                    width: 4,
-                    height: 20,
-                    speed: 12,
-                    element: document.createElement('div')
-                };
-                
-                rocket.element.className = 'rocket';
-                rocket.element.style.left = `${rocket.x}px`;
-                rocket.element.style.top = `${rocket.y}px`;
-                this.gameContainer.appendChild(rocket.element);
-                
-                this.rockets.push(rocket);
+                if (this.currentRockets > 0) {
+                    this.currentRockets--;
+                    this.updateRocketUI();
+
+                    const rocket = {
+                        x: this.player.x - 1, // Center rocket properly
+                        y: this.player.y - 10,
+                        width: 4,
+                        height: 20,
+                        speed: 12,
+                        element: document.createElement('div')
+                    };
+                    
+                    rocket.element.className = 'rocket';
+                    rocket.element.style.left = `${rocket.x}px`;
+                    rocket.element.style.top = `${rocket.y}px`;
+                    this.gameContainer.appendChild(rocket.element);
+                    
+                    this.rockets.push(rocket);
+                }
             }
 
             updateRockets() {
                 for (let i = this.rockets.length - 1; i >= 0; i--) {
                     const rocket = this.rockets[i];
+
                     rocket.y -= rocket.speed;
                     rocket.element.style.top = `${rocket.y}px`;
                     
@@ -535,6 +563,10 @@
                 }
             }
 
+            updateRocketUI() {
+                this.rocketCountElement.textContent = this.currentRockets;
+            }
+
             checkRocketCollisions() {
                 for (let i = this.rockets.length - 1; i >= 0; i--) {
                     const rocket = this.rockets[i];
@@ -543,6 +575,9 @@
                         const enemy = this.enemies[j];
                         
                         if (this.isRocketColliding(rocket, enemy)) {
+                            // Create floating text before removing the enemy
+                            this.createFloatingText("+100 points", enemy.x, enemy.y);
+
                             // Remove both rocket and enemy
                             rocket.element.remove();
                             this.rockets.splice(i, 1);
@@ -551,7 +586,7 @@
                             this.enemies.splice(j, 1);
                             
                             // Add bonus points for destroying asteroid
-                            this.score += 50;
+                            this.score += 100;
                             break;
                         }
                     }
@@ -563,6 +598,27 @@
                        rocket.x + rocket.width > enemy.x &&
                        rocket.y < enemy.y + enemy.height &&
                        rocket.y + rocket.height > enemy.y;
+            }
+
+            createFloatingText(text, x, y) {
+                const textElement = document.createElement('div');
+                textElement.className = 'floating-text';
+                textElement.textContent = text;
+                textElement.style.left = `${x}px`;
+                textElement.style.top = `${y}px`;
+                
+                this.gameContainer.appendChild(textElement);
+
+                // Trigger the animation by applying the end-state styles after a short delay
+                requestAnimationFrame(() => {
+                    textElement.style.transform = 'translateY(-50px)';
+                    textElement.style.opacity = '0';
+                });
+
+                // Remove the element after the animation
+                setTimeout(() => {
+                    textElement.remove();
+                }, 1000); // Matches the transition duration in CSS
             }
             
             checkCollisions() {
@@ -586,10 +642,10 @@
                 this.scoreElement.textContent = this.score;
                 
                 // Increase difficulty over time
-                if (this.score > 0 && this.score % 500 === 0) {
-                    this.enemySpawnRate = Math.min(0.08, this.enemySpawnRate + 0.015);
-                    this.enemySpeed = Math.min(8, this.enemySpeed + 0.5);
-                    this.speed = Math.min(120, this.speed + 10);
+                if (this.score > 0 && this.score % 250 === 0) {
+                    this.enemySpawnRate = Math.min(0.08, this.enemySpawnRate + 0.005);
+                    this.enemySpeed = Math.min(8, this.enemySpeed + 0.2);
+                    this.speed = Math.min(120, this.speed + 5);
                     this.speedElement.textContent = this.speed;
                 }
             }
@@ -612,12 +668,22 @@
                 this.playerCar.style.boxShadow = '0 0 30px rgba(255, 71, 87, 0.8), 0 0 60px rgba(255, 107, 122, 0.6)';
             }
             
+            rechargeRockets() {
+                const now = Date.now();
+                if (this.currentRockets < this.maxRockets && now - this.lastRechargeTime > this.rocketRechargeRate) {
+                    this.currentRockets++;
+                    this.updateRocketUI();
+                    this.lastRechargeTime = now;
+                }
+            }
+
             gameLoop() {
                 if (!this.gameRunning) return;
                 
                 this.updatePlayerPosition();
                 this.spawnEnemy();
                 this.updateEnemies();
+                this.rechargeRockets();
                 this.updateRockets();
                 this.checkRocketCollisions();
                 this.checkCollisions();
@@ -633,6 +699,8 @@
                 this.speed = 60;
                 this.enemySpawnRate = 0.04;
                 this.enemySpeed = 3;
+                this.currentRockets = this.maxRockets;
+                this.lastRechargeTime = 0;
                 this.player.currentLane = 4;
                 
                 // Clear enemies and rockets
@@ -644,6 +712,7 @@
                 // Reset UI
                 this.scoreElement.textContent = '0';
                 this.speedElement.textContent = '60';
+                this.updateRocketUI();
                 this.gameOverScreen.style.display = 'none';
                 
                 // Reset player ship
