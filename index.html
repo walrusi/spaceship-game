@@ -320,6 +320,31 @@
             pointer-events: none;
             transition: transform 1s ease-out, opacity 1s ease-out;
         }
+
+        .level-up-notification {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 20px 40px;
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.85), rgba(0, 153, 204, 0.85));
+            border: 2px solid #00d4ff;
+            border-radius: 10px;
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.6);
+            z-index: 1001;
+            pointer-events: none;
+            animation: levelUpFade 2.5s ease-in-out forwards;
+        }
+
+        @keyframes levelUpFade {
+            0% { opacity: 0; transform: translateX(-50%) translateY(20px); }
+            15% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            85% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+        }
     </style>
 </head>
 <body>
@@ -397,6 +422,9 @@
                 this.currentRockets = this.maxRockets;
                 this.rocketRechargeRate = 1000; // 1 second in ms
                 this.lastRechargeTime = 0;
+                this.level = 1;
+                // Difficulty increases every 500 points.
+                this.levelUpScoreInterval = 500; 
 
                 
                 this.keys = {
@@ -490,18 +518,29 @@
                 if (Math.random() < this.enemySpawnRate) {
                     const lane = Math.floor(Math.random() * this.lanes.length);
                     const type = this.asteroidTypes[Math.floor(Math.random() * this.asteroidTypes.length)];
-                    
+                    const sizeMultiplier = Math.random() < 0.25 ? 1.5 : 1; // 25% chance of being large
+                    const baseSize = 40;
+
                     const enemy = {
                         x: this.lanes[lane],
-                        y: -40,
-                        width: 40,
-                        height: 40,
+                        y: -(baseSize * sizeMultiplier),
+                        width: baseSize * sizeMultiplier,
+                        height: baseSize * sizeMultiplier,
                         speed: this.enemySpeed + Math.random() * 2,
                         element: document.createElement('div'),
-                        color: type
+                        color: type,
+                        dx: 0,
+                        scoreValue: sizeMultiplier > 1 ? 200 : 100
                     };
                     
+                    // Some asteroids will move diagonally
+                    if (Math.random() < 0.4) { // 40% chance
+                        enemy.dx = (Math.random() - 0.5) * 2.5; // a value between -1.25 and 1.25
+                    }
+
                     enemy.element.className = `asteroid ${type}`;
+                    enemy.element.style.width = `${enemy.width}px`;
+                    enemy.element.style.height = `${enemy.height}px`;
                     enemy.element.style.left = `${enemy.x}px`;
                     enemy.element.style.top = `${enemy.y}px`;
                     this.gameContainer.appendChild(enemy.element);
@@ -514,7 +553,18 @@
                 for (let i = this.enemies.length - 1; i >= 0; i--) {
                     const enemy = this.enemies[i];
                     enemy.y += enemy.speed;
+                    enemy.x += enemy.dx;
+
+                    // Bounce off the sides of the game lane
+                    const laneBoundaryLeft = this.roadLeft;
+                    const laneBoundaryRight = this.roadLeft + this.gameWidth - enemy.width;
+
+                    if (enemy.x <= laneBoundaryLeft || enemy.x >= laneBoundaryRight) {
+                        enemy.dx *= -1;
+                    }
+
                     enemy.element.style.top = `${enemy.y}px`;
+                    enemy.element.style.left = `${enemy.x}px`;
                     
                     // Remove enemies that have left the screen
                     if (enemy.y > window.innerHeight + 100) {
@@ -531,7 +581,7 @@
                     this.updateRocketUI();
 
                     const rocket = {
-                        x: this.player.x - 1, // Center rocket properly
+                        x: this.player.x - 2, // Center rocket on the ship's visual center
                         y: this.player.y - 10,
                         width: 4,
                         height: 20,
@@ -575,8 +625,9 @@
                         const enemy = this.enemies[j];
                         
                         if (this.isRocketColliding(rocket, enemy)) {
+                            const scoreGained = enemy.scoreValue || 100; // Fallback for safety
                             // Create floating text before removing the enemy
-                            this.createFloatingText("+100 points", enemy.x, enemy.y);
+                            this.createFloatingText(`+${scoreGained} points`, enemy.x, enemy.y);
 
                             // Remove both rocket and enemy
                             rocket.element.remove();
@@ -586,7 +637,7 @@
                             this.enemies.splice(j, 1);
                             
                             // Add bonus points for destroying asteroid
-                            this.score += 100;
+                            this.score += scoreGained;
                             break;
                         }
                     }
@@ -620,6 +671,23 @@
                     textElement.remove();
                 }, 1000); // Matches the transition duration in CSS
             }
+
+            showLevelUpNotification(message) {
+                // Prevent multiple notifications from appearing at once
+                if (document.querySelector('.level-up-notification')) {
+                    return;
+                }
+
+                const notificationElement = document.createElement('div');
+                notificationElement.className = 'level-up-notification';
+                notificationElement.textContent = message;
+                
+                this.gameContainer.appendChild(notificationElement);
+
+                setTimeout(() => {
+                    notificationElement.remove();
+                }, 2500); // Must match the animation duration in CSS
+            }
             
             checkCollisions() {
                 for (const enemy of this.enemies) {
@@ -631,22 +699,33 @@
             }
             
             isColliding(rect1, rect2) {
-                return rect1.x < rect2.x + rect2.width &&
-                       rect1.x + rect1.width > rect2.x &&
-                       this.player.y < rect2.y + rect2.height &&
-                       this.player.y + rect1.height > rect2.y;
+                // rect1 is the player. Its 'x' is the center point due to CSS transform.
+                // We need to calculate the visual left edge for an accurate hitbox.
+                const playerVisualX = rect1.x - (rect1.width / 2);
+                return playerVisualX < rect2.x + rect2.width &&
+                       playerVisualX + rect1.width > rect2.x &&
+                       rect1.y < rect2.y + rect2.height &&
+                       rect1.y + rect1.height > rect2.y;
             }
             
             updateScore() {
                 this.score += 1;
                 this.scoreElement.textContent = this.score;
                 
+                const nextLevelScore = this.level * this.levelUpScoreInterval;
+
                 // Increase difficulty over time
-                if (this.score > 0 && this.score % 250 === 0) {
+                if (this.score >= nextLevelScore) {
+                    this.level++;
                     this.enemySpawnRate = Math.min(0.08, this.enemySpawnRate + 0.005);
                     this.enemySpeed = Math.min(8, this.enemySpeed + 0.2);
                     this.speed = Math.min(120, this.speed + 5);
                     this.speedElement.textContent = this.speed;
+
+                    // Show a notification every 10 levels.
+                    if (this.level % 10 === 0) {
+                        this.showLevelUpNotification(`Level ${this.level} Reached!`);
+                    }
                 }
             }
             
@@ -702,6 +781,7 @@
                 this.currentRockets = this.maxRockets;
                 this.lastRechargeTime = 0;
                 this.player.currentLane = 4;
+                this.level = 1;
                 
                 // Clear enemies and rockets
                 this.enemies.forEach(enemy => enemy.element.remove());
